@@ -19,13 +19,20 @@ Follow these steps to implement OERA for any new table:
     /DataDefinitions
         {Entity}Dataset.i
     /DataAccess
+        I{Entity}DAO.cls
         {Entity}DAO.cls
     /Entity
+        I{Entity}BE.cls
         {Entity}BE.cls
     /Task
         {Entity}Task.cls (optional for complex operations)
 /Presentation
     {Entity}Window.w (or .p)
+/Test
+    /Mock
+        Mock{Entity}DAO.cls
+    /Unit
+        {Entity}BETest.cls
 ```
 
 ---
@@ -68,16 +75,52 @@ DEFINE DATASET ds{Entity} {&REFERENCE-ONLY} FOR tt{Entity}.
 
 ---
 
-## Step 2: DAO Implementation
+## Step 2: DAO Interface
+
+**File:** `/Business/DataAccess/I{Entity}DAO.cls`
+
+```openedge
+/* I{Entity}DAO.cls - Data Access Object Interface for {Entity} */
+
+INTERFACE Business.DataAccess.I{Entity}DAO:
+    
+    /* Fetch single record by ID */
+    METHOD PUBLIC VOID Fetch{Entity}(
+        INPUT  i{Entity}ID AS INTEGER,
+        OUTPUT DATASET ds{Entity} BY-REFERENCE).
+    
+    /* Fetch multiple records by criteria */
+    METHOD PUBLIC VOID Fetch{Entity}ByStatus(
+        INPUT  cStatus AS CHARACTER,
+        OUTPUT DATASET ds{Entity} BY-REFERENCE).
+    
+    /* Add additional fetch methods as needed */
+    /* Example: Fetch{Entity}ByDateRange, Fetch{Entity}ByCustomer, etc. */
+    
+    /* Save (Create/Update) */
+    METHOD PUBLIC VOID Save{Entity}(
+        INPUT-OUTPUT DATASET ds{Entity} BY-REFERENCE).
+    
+    /* Delete */
+    METHOD PUBLIC VOID Delete{Entity}(
+        INPUT i{Entity}ID AS INTEGER).
+        
+END INTERFACE.
+```
+
+---
+
+## Step 3: DAO Implementation
 
 **File:** `/Business/DataAccess/{Entity}DAO.cls`
 
 ```openedge
 /* {Entity}DAO.cls - Data Access Object Implementation for {Entity} */
 
+USING Business.DataAccess.I{Entity}DAO.
 USING Progress.Lang.*.
 
-CLASS Business.DataAccess.{Entity}DAO:
+CLASS Business.DataAccess.{Entity}DAO IMPLEMENTS I{Entity}DAO:
     
     {{Entity}Dataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
     
@@ -170,25 +213,66 @@ END CLASS.
 
 ---
 
-## Step 3: Business Entity Implementation
+## Step 4: Business Entity Interface
+
+**File:** `/Business/Entity/I{Entity}BE.cls`
+
+```openedge
+/* I{Entity}BE.cls - Business Entity Interface for {Entity} */
+
+INTERFACE Business.Entity.I{Entity}BE:
+    
+    /* Get single record */
+    METHOD PUBLIC VOID Get{Entity}(
+        INPUT  i{Entity}ID AS INTEGER,
+        OUTPUT DATASET ds{Entity} BY-REFERENCE).
+    
+    /* Get by criteria */
+    METHOD PUBLIC VOID Get{Entity}ByStatus(
+        INPUT  cStatus AS CHARACTER,
+        OUTPUT DATASET ds{Entity} BY-REFERENCE).
+    
+    /* Save with validation */
+    METHOD PUBLIC LOGICAL Save{Entity}(
+        INPUT-OUTPUT DATASET ds{Entity} BY-REFERENCE,
+        OUTPUT cErrorMessage AS CHARACTER).
+    
+    /* Delete with business rules */
+    METHOD PUBLIC LOGICAL Delete{Entity}(
+        INPUT  i{Entity}ID AS INTEGER,
+        OUTPUT cErrorMessage AS CHARACTER).
+        
+END INTERFACE.
+```
+
+---
+
+## Step 5: Business Entity Implementation
 
 **File:** `/Business/Entity/{Entity}BE.cls`
 
 ```openedge
 /* {Entity}BE.cls - Business Entity Implementation for {Entity} */
 
+USING Business.Entity.I{Entity}BE.
+USING Business.DataAccess.I{Entity}DAO.
 USING Business.DataAccess.{Entity}DAO.
 USING Progress.Lang.*.
 
-CLASS Business.Entity.{Entity}BE:
+CLASS Business.Entity.{Entity}BE IMPLEMENTS I{Entity}BE:
     
     {{Entity}Dataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
     
-    DEFINE PRIVATE VARIABLE oDAO AS {Entity}DAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oDAO AS I{Entity}DAO NO-UNDO.
     
-    /* Constructor */
+    /* Constructor - creates DAO */
     CONSTRUCTOR PUBLIC {Entity}BE():
         oDAO = NEW {Entity}DAO().
+    END CONSTRUCTOR.
+    
+    /* Constructor with DAO injection (for testing) */
+    CONSTRUCTOR PUBLIC {Entity}BE(INPUT poDAO AS I{Entity}DAO):
+        oDAO = poDAO.
     END CONSTRUCTOR.
     
     /* Get single record */
@@ -358,7 +442,7 @@ END CLASS.
 
 ---
 
-## Step 4: Presentation Layer
+## Step 6: Presentation Layer
 
 **File:** `/Presentation/{Entity}Window.w`
 
@@ -368,7 +452,7 @@ END CLASS.
 /* Include WITHOUT REFERENCE-ONLY parameter for presentation layer */
 {{Entity}Dataset.i}
 
-DEFINE VARIABLE o{Entity}BE AS Business.Entity.{Entity}BE NO-UNDO.
+DEFINE VARIABLE o{Entity}BE AS Business.Entity.I{Entity}BE NO-UNDO.
 DEFINE VARIABLE cErrorMessage AS CHARACTER NO-UNDO.
 DEFINE VARIABLE lSuccess AS LOGICAL NO-UNDO.
 DEFINE VARIABLE iCurrent{Entity}ID AS INTEGER NO-UNDO.
@@ -448,6 +532,68 @@ END PROCEDURE.
 
 ---
 
+## Step 7: Unit Testing (Optional)
+
+**File:** `/Test/Mock/Mock{Entity}DAO.cls`
+
+```openedge
+/* Mock{Entity}DAO.cls - Mock for unit testing */
+
+USING Business.DataAccess.I{Entity}DAO.
+
+CLASS Test.Mock.Mock{Entity}DAO IMPLEMENTS I{Entity}DAO:
+    
+    {{Entity}Dataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
+    
+    DEFINE PUBLIC PROPERTY SaveWasCalled AS LOGICAL NO-UNDO GET. SET.
+    
+    /* Implement methods with mock data - no database! */
+    METHOD PUBLIC VOID Fetch{Entity}(...):
+        CREATE tt{Entity}.
+        /* Return mock data */
+    END METHOD.
+    
+    METHOD PUBLIC VOID Save{Entity}(...):
+        SaveWasCalled = TRUE.
+    END METHOD.
+    
+    /* ... */
+END CLASS.
+```
+
+**File:** `/Test/Unit/{Entity}BETest.cls`
+
+```openedge
+/* {Entity}BETest.cls - ABLUnit tests */
+
+USING OpenEdge.Core.Assert.
+USING Business.Entity.{Entity}BE.
+USING Test.Mock.Mock{Entity}DAO.
+
+CLASS Test.Unit.{Entity}BETest:
+    
+    DEFINE PRIVATE VARIABLE oMockDAO AS Mock{Entity}DAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oBE AS {Entity}BE NO-UNDO.
+    
+    @Before.
+    METHOD PUBLIC VOID setUp():
+        oMockDAO = NEW Mock{Entity}DAO().
+        oBE = NEW {Entity}BE(oMockDAO).  /* Inject mock */
+    END METHOD.
+    
+    @Test.
+    METHOD PUBLIC VOID testSave_ValidData_ShouldSucceed():
+        /* Write your test */
+        Assert:IsTrue(condition).
+    END METHOD.
+    
+END CLASS.
+```
+
+**For complete testing guide:** See [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md)
+
+---
+
 ## Quick Copy-Paste Checklist
 
 When creating a new entity, follow this checklist:
@@ -459,15 +605,27 @@ When creating a new entity, follow this checklist:
 - [ ] Add appropriate indexes
 - [ ] Save to `/Business/DataDefinitions/`
 
-### 2. Create DAO Class
+### 2. Create DAO Interface
+- [ ] Copy `I{Entity}DAO.cls` template
+- [ ] Replace `{Entity}` with your entity name
+- [ ] Add/remove methods as needed for your queries
+- [ ] Save to `/Business/DataAccess/`
+
+### 3. Create DAO Implementation
 - [ ] Copy `{Entity}DAO.cls` template
 - [ ] Replace `{Entity}` with your entity name
 - [ ] Update buffer names to match your database table
-- [ ] Implement all methods
+- [ ] Implement all methods from interface
 - [ ] Add any custom query methods
 - [ ] Save to `/Business/DataAccess/`
 
-### 3. Create BE Class
+### 4. Create BE Interface
+- [ ] Copy `I{Entity}BE.cls` template
+- [ ] Replace `{Entity}` with your entity name
+- [ ] Add/remove methods as needed
+- [ ] Save to `/Business/Entity/`
+
+### 5. Create BE Implementation
 - [ ] Copy `{Entity}BE.cls` template
 - [ ] Replace `{Entity}` with your entity name
 - [ ] Customize validation rules
@@ -475,12 +633,20 @@ When creating a new entity, follow this checklist:
 - [ ] Add any calculation methods needed
 - [ ] Save to `/Business/Entity/`
 
-### 4. Create Presentation Layer
+### 6. Create Presentation Layer
 - [ ] Copy `{Entity}Window.w` template
 - [ ] Replace `{Entity}` with your entity name
 - [ ] Implement UI-to-dataset binding
 - [ ] Add any additional UI procedures
 - [ ] Save to `/Presentation/`
+
+### 7. Create Unit Tests (Optional)
+- [ ] Copy `Mock{Entity}DAO.cls` template
+- [ ] Copy `{Entity}BETest.cls` template
+- [ ] Replace `{Entity}` with your entity name
+- [ ] Write test methods for validation and business rules
+- [ ] Run tests to verify
+- [ ] Save to `/Test/Mock/` and `/Test/Unit/`
 
 ---
 
@@ -592,8 +758,16 @@ DEFINE TEMP-TABLE ttCustomer NO-UNDO {&REFERENCE-ONLY}
 DEFINE DATASET dsCustomer {&REFERENCE-ONLY} FOR ttCustomer.
 ```
 
-**CustomerDAO.cls, CustomerBE.cls, CustomerWindow.w**
-- Follow the same pattern, replacing {Entity} with Customer
+**Files to create:**
+- ICustomerDAO.cls - DAO interface
+- CustomerDAO.cls - DAO implementation  
+- ICustomerBE.cls - BE interface
+- CustomerBE.cls - BE implementation
+- CustomerWindow.w - Presentation
+- MockCustomerDAO.cls - Mock for testing
+- CustomerBETest.cls - Unit tests
+
+Follow the same pattern, replacing {Entity} with Customer
 
 ---
 

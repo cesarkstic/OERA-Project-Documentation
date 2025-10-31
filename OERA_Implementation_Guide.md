@@ -82,12 +82,44 @@ DEFINE DATASET dsInvoice {&REFERENCE-ONLY} FOR ttInvoice.
 
 ### Step 2: Data Access Layer (DAO)
 
+**DAO Interface**
+
+```openedge
+/* IInvoiceDAO.cls - Interface for Invoice DAO */
+
+INTERFACE Business.DataAccess.IInvoiceDAO:
+    
+    METHOD PUBLIC VOID FetchInvoice(
+        INPUT  iInvoiceID AS INTEGER,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID FetchInvoicesByCustomer(
+        INPUT  iCustomerID AS INTEGER,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID FetchInvoicesByDateRange(
+        INPUT  dtStartDate AS DATE,
+        INPUT  dtEndDate AS DATE,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID SaveInvoice(
+        INPUT-OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID DeleteInvoice(
+        INPUT iInvoiceID AS INTEGER).
+        
+END INTERFACE.
+```
+
+**DAO Implementation**
+
 ```openedge
 /* InvoiceDAO.cls - Data Access Object Implementation */
 
+USING Business.DataAccess.IInvoiceDAO.
 USING Progress.Lang.*.
 
-CLASS Business.DataAccess.InvoiceDAO:
+CLASS Business.DataAccess.InvoiceDAO IMPLEMENTS IInvoiceDAO:
     
     {InvoiceDataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
     
@@ -203,21 +235,64 @@ END CLASS.
 
 ### Step 3: Business Entity Layer (BE)
 
+**Business Entity Interface**
+
+```openedge
+/* IInvoiceBE.cls - Interface for Invoice Business Entity */
+
+INTERFACE Business.Entity.IInvoiceBE:
+    
+    METHOD PUBLIC VOID GetInvoice(
+        INPUT  iInvoiceID AS INTEGER,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID GetInvoicesByCustomer(
+        INPUT  iCustomerID AS INTEGER,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC VOID GetInvoicesByDateRange(
+        INPUT  dtStartDate AS DATE,
+        INPUT  dtEndDate AS DATE,
+        OUTPUT DATASET dsInvoice BY-REFERENCE).
+    
+    METHOD PUBLIC LOGICAL SaveInvoice(
+        INPUT-OUTPUT DATASET dsInvoice BY-REFERENCE,
+        OUTPUT cErrorMessage AS CHARACTER).
+    
+    METHOD PUBLIC LOGICAL DeleteInvoice(
+        INPUT  iInvoiceID AS INTEGER,
+        OUTPUT cErrorMessage AS CHARACTER).
+    
+    METHOD PUBLIC DECIMAL CalculateInvoiceTotal(
+        INPUT-OUTPUT DATASET dsInvoice BY-REFERENCE).
+        
+END INTERFACE.
+```
+
+**Business Entity Implementation**
+
 ```openedge
 /* InvoiceBE.cls - Business Entity Implementation */
 
+USING Business.Entity.IInvoiceBE.
+USING Business.DataAccess.IInvoiceDAO.
 USING Business.DataAccess.InvoiceDAO.
 USING Progress.Lang.*.
 
-CLASS Business.Entity.InvoiceBE:
+CLASS Business.Entity.InvoiceBE IMPLEMENTS IInvoiceBE:
     
     {InvoiceDataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
     
-    DEFINE PRIVATE VARIABLE oDAO AS InvoiceDAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oDAO AS IInvoiceDAO NO-UNDO.
     
-    /* Constructor */
+    /* Constructor - Dependency Injection */
     CONSTRUCTOR PUBLIC InvoiceBE():
         oDAO = NEW InvoiceDAO().
+    END CONSTRUCTOR.
+    
+    /* Constructor with DAO injection for testing */
+    CONSTRUCTOR PUBLIC InvoiceBE(INPUT poDAO AS IInvoiceDAO):
+        oDAO = poDAO.
     END CONSTRUCTOR.
     
     /* Get single invoice */
@@ -427,6 +502,7 @@ END CLASS.
 ```openedge
 /* InvoicePostingTask.cls - Business Task for complex operations */
 
+USING Business.Entity.IInvoiceBE.
 USING Business.Entity.InvoiceBE.
 USING Progress.Lang.*.
 
@@ -434,7 +510,7 @@ CLASS Business.Task.InvoicePostingTask:
     
     {InvoiceDataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
     
-    DEFINE PRIVATE VARIABLE oInvoiceBE AS InvoiceBE NO-UNDO.
+    DEFINE PRIVATE VARIABLE oInvoiceBE AS IInvoiceBE NO-UNDO.
     
     CONSTRUCTOR PUBLIC InvoicePostingTask():
         oInvoiceBE = NEW InvoiceBE().
@@ -500,7 +576,7 @@ END CLASS.
 /* Include WITHOUT REFERENCE-ONLY parameter for presentation layer */
 {InvoiceDataset.i}
 
-DEFINE VARIABLE oInvoiceBE AS Business.Entity.InvoiceBE NO-UNDO.
+DEFINE VARIABLE oInvoiceBE AS Business.Entity.IInvoiceBE NO-UNDO.
 DEFINE VARIABLE cErrorMessage AS CHARACTER NO-UNDO.
 DEFINE VARIABLE lSuccess AS LOGICAL NO-UNDO.
 
@@ -596,6 +672,105 @@ DEFINE DATASET dsInvoice FOR ttInvoice.
 
 ---
 
+## Step 6: Unit Testing (Optional but Recommended)
+
+### Why Interfaces Enable Testing
+
+Interfaces allow you to create mock implementations for testing business logic without database access.
+
+**Mock DAO Example:**
+
+```openedge
+/* MockInvoiceDAO.cls - For testing only */
+
+USING Business.DataAccess.IInvoiceDAO.
+
+CLASS Test.Mock.MockInvoiceDAO IMPLEMENTS IInvoiceDAO:
+    
+    {InvoiceDataset.i &REFERENCE-ONLY=REFERENCE-ONLY}
+    
+    DEFINE PUBLIC PROPERTY SaveWasCalled AS LOGICAL NO-UNDO GET. SET.
+    
+    METHOD PUBLIC VOID FetchInvoice(
+        INPUT  iInvoiceID AS INTEGER,
+        OUTPUT DATASET dsInvoice BY-REFERENCE):
+        
+        /* Return mock data - no database! */
+        CREATE ttInvoice.
+        ASSIGN
+            ttInvoice.InvoiceID = iInvoiceID
+            ttInvoice.CustomerID = 100
+            ttInvoice.InvoiceDate = TODAY
+            ttInvoice.TotalAmount = 1000.00
+            ttInvoice.Status = "DRAFT".
+    END METHOD.
+    
+    METHOD PUBLIC VOID SaveInvoice(
+        INPUT-OUTPUT DATASET dsInvoice BY-REFERENCE):
+        SaveWasCalled = TRUE.
+        /* No database access! */
+    END METHOD.
+    
+    /* Implement other methods similarly */
+    
+END CLASS.
+```
+
+**Test Class Example:**
+
+```openedge
+/* InvoiceBETest.cls - ABLUnit test */
+
+USING Progress.Lang.*.
+USING OpenEdge.Core.Assert.
+USING Business.Entity.InvoiceBE.
+USING Test.Mock.MockInvoiceDAO.
+
+CLASS Test.Unit.InvoiceBETest:
+    
+    {InvoiceDataset.i}
+    
+    DEFINE PRIVATE VARIABLE oMockDAO AS MockInvoiceDAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oBE AS InvoiceBE NO-UNDO.
+    
+    @Before.
+    METHOD PUBLIC VOID setUp():
+        oMockDAO = NEW MockInvoiceDAO().
+        oBE = NEW InvoiceBE(oMockDAO).  /* Inject mock! */
+    END METHOD.
+    
+    @Test.
+    METHOD PUBLIC VOID testSaveInvoice_MissingDate_ShouldFail():
+        DEFINE VARIABLE lResult AS LOGICAL NO-UNDO.
+        DEFINE VARIABLE cError AS CHARACTER NO-UNDO.
+        
+        /* Arrange */
+        CREATE ttInvoice.
+        ASSIGN
+            ttInvoice.InvoiceDate = ?  /* Invalid */
+            ttInvoice.CustomerID = 123
+            ttInvoice.Status = "DRAFT".
+        
+        /* Act */
+        lResult = oBE:SaveInvoice(
+            INPUT-OUTPUT DATASET dsInvoice BY-REFERENCE,
+            OUTPUT cError).
+        
+        /* Assert */
+        Assert:IsFalse(lResult).
+        Assert:Equals("Invoice date is required.", cError).
+        
+        /* Verify DAO not called (validation failed early) */
+        Assert:IsFalse(oMockDAO:SaveWasCalled).
+    END METHOD.
+    
+END CLASS.
+```
+
+**For complete testing guide, see:** [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md)
+
+---
+
 ## Template Checklist for New Functionality
 
 When implementing new functionality, follow this checklist:
@@ -607,24 +782,28 @@ When implementing new functionality, follow this checklist:
 - [ ] Define indexes and relationships
 - [ ] Document all fields and usage
 
-### 2. Create DAO Class
-- [ ] Create `{Entity}DAO.cls` class
+### 2. Create DAO Interface and Class
+- [ ] Create `I{Entity}DAO.cls` interface
+- [ ] Define Fetch methods (OUTPUT DATASET BY-REFERENCE)
+- [ ] Define Save method (INPUT-OUTPUT DATASET BY-REFERENCE)
+- [ ] Define Delete method
+- [ ] Create `{Entity}DAO.cls` implementation
 - [ ] Include dataset with `{DatasetName.i &REFERENCE-ONLY=REFERENCE-ONLY}`
-- [ ] Implement Fetch methods (OUTPUT DATASET BY-REFERENCE)
-- [ ] Implement Save method (INPUT-OUTPUT DATASET BY-REFERENCE)
-- [ ] Implement Delete method
+- [ ] Implement all interface methods
 - [ ] Use buffers for all database access
 - [ ] Wrap saves in transactions
 - [ ] Handle errors appropriately
 
-### 3. Create BE Class
-- [ ] Create `{Entity}BE.cls` class
+### 3. Create BE Interface and Class
+- [ ] Create `I{Entity}BE.cls` interface
+- [ ] Define Get methods
+- [ ] Define Save with validation (returns LOGICAL + error message)
+- [ ] Define Delete with business rules (returns LOGICAL + error message)
+- [ ] Create `{Entity}BE.cls` implementation
 - [ ] Include dataset with `{DatasetName.i &REFERENCE-ONLY=REFERENCE-ONLY}`
-- [ ] Implement Get methods
-- [ ] Implement Save with validation
-- [ ] Implement Delete with business rules
-- [ ] Add calculation methods if needed
-- [ ] Create DAO instance in constructor
+- [ ] Implement all interface methods
+- [ ] Inject DAO through constructor (Dependency Inversion)
+- [ ] Add constructor overload for testing (accepts IDao parameter)
 - [ ] Add private validation methods
 - [ ] Add private audit field methods
 

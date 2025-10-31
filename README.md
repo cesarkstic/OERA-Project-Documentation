@@ -15,6 +15,8 @@ This project contains comprehensive documentation and templates for implementing
 - SOLID principles explanation for OpenEdge
 - Complete Invoice entity implementation (all layers)
 - Dataset include file with REFERENCE-ONLY parameter strategy
+- Interface usage and dependency injection
+- Unit testing introduction
 - Best practices and common pitfalls
 - Quick reference for parameter patterns
 
@@ -24,11 +26,26 @@ This project contains comprehensive documentation and templates for implementing
 
 **Contents:**
 - Generic template with `{Entity}` placeholders
-- Complete code for all 4 files (Dataset, DAO Class, BE Class, Presentation)
+- Complete code for all layers (Dataset, DAO Interface/Class, BE Interface/Class, Presentation)
+- Mock DAO and unit test templates
 - Find-and-replace guide
 - Step-by-step checklist
 - Common validation patterns
 - Customization examples
+
+### 3. UNIT_TESTING_GUIDE.md
+**Purpose:** Complete guide to unit testing with ABLUnit framework  
+**Use When:** Setting up unit tests for your OERA implementation  
+
+**Contents:**
+- ABLUnit framework basics
+- Creating mock DAO objects
+- Writing test classes
+- Testing validation logic
+- Testing business rules
+- Running tests
+- Best practices
+- Complete working examples
 
 ## Quick Start
 
@@ -78,11 +95,15 @@ Recommended directory structure:
             OrderDataset.i
             ...
         /DataAccess
+            IInvoiceDAO.cls
             InvoiceDAO.cls
+            ICustomerDAO.cls
             CustomerDAO.cls
             ...
         /Entity
+            IInvoiceBE.cls
             InvoiceBE.cls
+            ICustomerBE.cls
             CustomerBE.cls
             ...
         /Task
@@ -94,7 +115,45 @@ Recommended directory structure:
         CustomerWindow.w
         OrderWindow.w
         ...
+    /Test
+        /Mock
+            MockInvoiceDAO.cls
+            MockCustomerDAO.cls
+            ...
+        /Unit
+            InvoiceBETest.cls
+            CustomerBETest.cls
+            ...
 ```
+
+## Why Use Interfaces?
+
+Interfaces provide critical benefits for your OERA implementation:
+
+### 1. **Unit Testing**
+- Test business logic without database
+- Create mock implementations for testing
+- Run tests in milliseconds instead of seconds
+- Test validation and business rules in isolation
+
+### 2. **Flexibility**
+- Multiple implementations (local DB, AppServer, REST API)
+- Easy to swap implementations
+- Support different data sources
+
+### 3. **Dependency Inversion (SOLID)**
+- Depend on abstractions, not concrete classes
+- Loose coupling between layers
+- Easier to maintain and extend
+
+### 4. **Design by Contract**
+- Clear contract definition
+- Self-documenting code
+- Method signatures enforced by compiler
+
+**See [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md) for complete testing examples.**
+
+---
 
 ## Dataset Include File Strategy
 
@@ -194,22 +253,25 @@ For each new entity, complete these steps:
 - [ ] Define dataset with REFERENCE-ONLY parameter
 
 ### 2. Data Access Layer
-- [ ] Create `EntityDAO.cls` class
+- [ ] Create `IEntityDAO.cls` interface
 - [ ] Include dataset with REFERENCE-ONLY parameter
 - [ ] Define Fetch methods (OUTPUT DATASET BY-REFERENCE)
 - [ ] Define Save method (INPUT-OUTPUT DATASET BY-REFERENCE)
 - [ ] Define Delete method
-- [ ] Implement all methods
+- [ ] Create `EntityDAO.cls` implementation
+- [ ] Implement all interface methods
 - [ ] Use buffers for database access
 - [ ] Wrap saves in transactions
 
 ### 3. Business Entity Layer
-- [ ] Create `EntityBE.cls` class
+- [ ] Create `IEntityBE.cls` interface
 - [ ] Include dataset with REFERENCE-ONLY parameter
 - [ ] Define Get methods
 - [ ] Define Save with validation
 - [ ] Define Delete with business rules
-- [ ] Create DAO instance in constructor
+- [ ] Create `EntityBE.cls` implementation
+- [ ] Inject DAO through constructor
+- [ ] Add constructor overload for testing
 - [ ] Implement validation logic
 - [ ] Implement business rules
 - [ ] Add audit field management
@@ -217,10 +279,18 @@ For each new entity, complete these steps:
 ### 4. Presentation Layer
 - [ ] Include dataset WITHOUT REFERENCE-ONLY parameter
 - [ ] Create UI components
-- [ ] Instantiate BE classes
+- [ ] Instantiate BE using interface type
 - [ ] Call BE methods with BY-REFERENCE
 - [ ] Handle errors from BE layer
 - [ ] Never access DAO or database directly
+
+### 5. Unit Testing (Optional but Recommended)
+- [ ] Create mock DAO implementation
+- [ ] Create test class with ABLUnit
+- [ ] Write tests for validation rules
+- [ ] Write tests for business rules
+- [ ] Run tests and verify all pass
+- [ ] See [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md)
 
 ## Key Rules to Remember
 

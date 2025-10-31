@@ -164,7 +164,7 @@ END METHOD.
 ```openedge
 {EntityDataset.i}  /* No REFERENCE-ONLY */
 
-DEFINE VARIABLE oEntityBE AS EntityBE NO-UNDO.
+DEFINE VARIABLE oEntityBE AS IEntityBE NO-UNDO.
 DEFINE VARIABLE cError AS CHARACTER NO-UNDO.
 DEFINE VARIABLE lSuccess AS LOGICAL NO-UNDO.
 
@@ -261,10 +261,16 @@ END.
 ### Standard Constructor
 ```openedge
 CLASS EntityBE:
-    DEFINE PRIVATE VARIABLE oDAO AS EntityDAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oDAO AS IEntityDAO NO-UNDO.
     
+    /* Default constructor */
     CONSTRUCTOR PUBLIC EntityBE():
         oDAO = NEW EntityDAO().
+    END CONSTRUCTOR.
+    
+    /* Test constructor - dependency injection */
+    CONSTRUCTOR PUBLIC EntityBE(INPUT poDAO AS IEntityDAO):
+        oDAO = poDAO.
     END CONSTRUCTOR.
 END CLASS.
 ```
@@ -366,10 +372,14 @@ When using generic template:
 | File Type | Naming Pattern | Example |
 |-----------|---------------|---------|
 | Dataset Include | `{Entity}Dataset.i` | CustomerDataset.i |
+| DAO Interface | `I{Entity}DAO.cls` | ICustomerDAO.cls |
 | DAO Class | `{Entity}DAO.cls` | CustomerDAO.cls |
+| BE Interface | `I{Entity}BE.cls` | ICustomerBE.cls |
 | BE Class | `{Entity}BE.cls` | CustomerBE.cls |
 | Task Class | `{Entity}Task.cls` | CustomerTask.cls |
 | Presentation | `{Entity}Window.w` | CustomerWindow.w |
+| Mock DAO | `Mock{Entity}DAO.cls` | MockCustomerDAO.cls |
+| Unit Test | `{Entity}BETest.cls` | CustomerBETest.cls |
 
 ---
 
@@ -401,25 +411,73 @@ When using generic template:
 
 ---
 
+## Unit Testing Pattern
+
+### Mock DAO
+```openedge
+CLASS MockEntityDAO IMPLEMENTS IEntityDAO:
+    DEFINE PUBLIC PROPERTY SaveWasCalled AS LOGICAL GET. SET.
+    
+    METHOD PUBLIC VOID FetchEntity(...):
+        CREATE ttEntity.
+        /* Return mock data */
+    END METHOD.
+    
+    METHOD PUBLIC VOID SaveEntity(...):
+        SaveWasCalled = TRUE.
+    END METHOD.
+END CLASS.
+```
+
+### Test Class
+```openedge
+USING OpenEdge.Core.Assert.
+
+CLASS EntityBETest:
+    DEFINE PRIVATE VARIABLE oMockDAO AS MockEntityDAO NO-UNDO.
+    DEFINE PRIVATE VARIABLE oBE AS EntityBE NO-UNDO.
+    
+    @Before.
+    METHOD PUBLIC VOID setUp():
+        oMockDAO = NEW MockEntityDAO().
+        oBE = NEW EntityBE(oMockDAO).  /* Inject mock */
+    END METHOD.
+    
+    @Test.
+    METHOD PUBLIC VOID testValidation():
+        /* Test code */
+        Assert:IsFalse(lResult).
+    END METHOD.
+END CLASS.
+```
+
+**See [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md) for complete examples**
+
+---
+
 ## Quick Implementation Steps
 
 1. ✅ Create dataset include with REFERENCE-ONLY parameter
-2. ✅ Create DAO class with Fetch/Save/Delete methods
+2. ✅ Create DAO interface with Fetch/Save/Delete methods
 3. ✅ Implement DAO class with database operations
-4. ✅ Create BE class with Get/Save/Delete methods
+4. ✅ Create BE interface with Get/Save/Delete methods
 5. ✅ Implement BE class with validation and business rules
-6. ✅ Create presentation layer calling BE methods
-7. ✅ Test each layer independently
+6. ✅ Add test constructor for dependency injection
+7. ✅ Create presentation layer calling BE methods
+8. ✅ (Optional) Create mock DAO and unit tests
+9. ✅ Test each layer independently
 
 ---
 
 ## Key Principles
 
 1. **Separation of Concerns** - Each layer has one job
-2. **Single Responsibility** - Each class does one thing well
-3. **Open/Closed** - Open for extension, closed for modification
-4. **Pass by Reference** - Always use BY-REFERENCE for datasets
-5. **Reference Only** - Use in middle layers, not presentation
+2. **Dependency Inversion** - Depend on interfaces, not implementations
+3. **Single Responsibility** - Each class does one thing well
+4. **Open/Closed** - Open for extension, closed for modification
+5. **Testability** - Use interfaces for unit testing
+6. **Pass by Reference** - Always use BY-REFERENCE for datasets
+7. **Reference Only** - Use in middle layers, not presentation
 
 ---
 
