@@ -72,35 +72,17 @@ One-page cheat sheet for quick lookups. Contains:
 - Method signature patterns
 - Common code snippets
 - Validation patterns (15+ examples)
-- Constructor patterns with dependency injection
+- Constructor patterns
 - Error handling patterns
-- Unit testing patterns
 - Find-and-replace checklist
 - Common mistakes to avoid
+- Testing tips
 
 **Keep this open** while coding for quick reference to patterns and syntax.
 
 ---
 
-### 5. [UNIT_TESTING_GUIDE.md](UNIT_TESTING_GUIDE.md)
-**Test - Complete Unit Testing with ABLUnit**
-
-Comprehensive guide to unit testing your OERA implementation. Contains:
-- ABLUnit framework basics
-- Creating mock DAO implementations
-- Writing test classes  
-- Testing validation logic
-- Testing business rules
-- Testing error handling
-- Running tests
-- Best practices
-- Complete working examples
-
-**Use this** when setting up unit tests for your business logic.
-
----
-
-### 6. [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+### 5. [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 **Navigate - Document Relationships and Workflows**
 
 Guide to using all project documents together. Contains:
@@ -141,14 +123,13 @@ Guide to using all project documents together. Contains:
 
 | Document | Size | Purpose | Use When |
 |----------|------|---------|----------|
-| README.md | 13 KB | Project overview | Starting project, understanding principles |
-| OERA_Implementation_Guide.md | 25 KB | Detailed learning | Learning OERA, training team |
-| OERA_Generic_Template.md | 22 KB | Copy-paste templates | Implementing new entities |
-| QUICK_REFERENCE.md | 12 KB | Cheat sheet | Daily coding, quick lookups |
-| UNIT_TESTING_GUIDE.md | 38 KB | Testing guide | Writing unit tests |
+| README.md | 11 KB | Project overview | Starting project, understanding principles |
+| OERA_Implementation_Guide.md | 23 KB | Detailed learning | Learning OERA, training team |
+| OERA_Generic_Template.md | 21 KB | Copy-paste templates | Implementing new entities |
+| QUICK_REFERENCE.md | 11 KB | Cheat sheet | Daily coding, quick lookups |
 | PROJECT_STRUCTURE.md | 11 KB | Navigation guide | Understanding document relationships |
 
-**Total Documentation:** ~121 KB of comprehensive OERA guidance
+**Total Documentation:** ~77 KB of comprehensive OERA guidance
 
 ---
 
@@ -203,11 +184,10 @@ Code reviews for consistency
 - Single include file approach
 
 ### Object-Oriented Design
-- Interface usage for testing and flexibility
-- Dependency injection patterns
+- Class-based architecture
+- Separation of concerns
 - SOLID principles application
 - Constructor patterns
-- Mock objects for testing
 
 ### Implementation Patterns
 - DAO layer patterns (Fetch, Save, Delete)
